@@ -22,7 +22,7 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 
 //life game core
 //with all 8 neighbours
-__global__ void lifeGame(float *array,float *stepresult)
+__global__ void lifeGame(float *array,float *nextstepresult)
 {
 	unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
 	//unsigned int id = threadIdx.x;
@@ -100,21 +100,21 @@ __global__ void lifeGame(float *array,float *stepresult)
 	//The cell dies when neighbor<3 or neighbor>4.
 	if (array[id] == 1 && (count < 3 || count > 4))
 	{
-		stepresult[id] = 0;
+		nextstepresult[id] = 0;
 	}
 	//The cell stays the same when neighbor=3 or =4.
 	else if (array[id] == 1 && (count == 3 || count == 4))
 	{
-		stepresult[id] = 1;
+		nextstepresult[id] = 1;
 	}
 	//The cell is "born" when neighbor=3 and itself is died.
 	else if (array[id] == 0 && count == 3)
 	{
-		stepresult[id] = 1;
+		nextstepresult[id] = 1;
 	}
 	else if (array[id] == 0 && count != 3)
 	{
-		stepresult[id] = 0;
+		nextstepresult[id] = 0;
 	}
 }
 
@@ -147,12 +147,7 @@ void printResult(float *array)
 }
 
 void main()
-{
-    //const int arraySize = 5;
-    //const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    //const int b[arraySize] = { 10, 20, 30, 40, 50 };
-    //int c[arraySize] = { 0 };
-	
+{	
 	//seed
 	srand(time(0));
 
@@ -183,14 +178,16 @@ void main()
 	initialize(h_b);
 	initialize(h_c);
 
-	for (int i = 1; i < 10;i++)
+	for (int i = 1; i < row-20;i++)
 	{
-		for (int j = 1; j < 10; j++)
+		for (int j = 20; j < column; j++)
 		{
 			h_a[i*column + j] = 1;
 		}
 	}
-		
+	
+	printResult(h_a);
+	cout << endl;
 
 	//Device mallocation
 	//life game -- array
@@ -203,7 +200,7 @@ void main()
 		//return 0;
 	}
 
-	//life game -- stepresult
+	//life game -- nextstepresult
 	cudaStatus = cudaMalloc((void**)&d_b, sizeof(float)*row*column);
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess)
@@ -235,7 +232,7 @@ void main()
 		}
 		else
 		{
-			lifeGame <<< nblocks, 512 >> > (d_b, d_a);
+			lifeGame <<< nblocks, 512 >>> (d_b, d_a);
 		}
 		
 		cudaThreadSynchronize();
@@ -246,38 +243,30 @@ void main()
 		//the resultin is in milliseconds with a resolution of around 0.5 microseconds
 		printf("\n%f milliseconds passed in GPU processing\n", cal_time);
 
-		//copy result from device to host
-		cudaStatus = cudaMemcpy(h_b, d_b, sizeof(float)*row*column, cudaMemcpyDeviceToHost);
-	
-		//2nd time running....//
+		//Decide what should send back to the host
+		if (counter % 2 == 0)
+		{
+			//copy result from device to host
+			cudaStatus = cudaMemcpy(h_b, d_b, sizeof(float)*row*column, cudaMemcpyDeviceToHost);
+		}
+		else
+		{
+			cudaStatus = cudaMemcpy(h_b, d_a, sizeof(float)*row*column, cudaMemcpyDeviceToHost);
+		}
 
-	////Memory copy from host to device
-	//cudaStatus = cudaMemcpy(d_a, h_b, sizeof(float)*row*column, cudaMemcpyHostToDevice);
-	//cudaStatus = cudaMemcpy(d_b, h_c, sizeof(float)*row*column, cudaMemcpyHostToDevice);
-
-
-	//
-
-	////Run kernel
-	////int nblocks = row*column / 512 + 1;
-	//lifeGame <<< nblocks, 512 >>> (d_a, d_b);
-
-	//cudaThreadSynchronize();
-	//
-
-
-	////copy result from device to host
-	//cudaStatus = cudaMemcpy(h_c, d_b, sizeof(float)*row*column, cudaMemcpyDeviceToHost);
-
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
+		// cudaDeviceReset must be called before exiting in order for profiling and
+		// tracing tools such as Nsight and Visual Profiler to show complete traces.
     
-	printResult(h_a);
-	cout << endl;
-	printResult(h_b);
-	cout << endl;
-	//printResult(h_c);
-	system("pause");
+		//printResult(h_a);
+		cout << endl;
+		printResult(h_b);
+		cout << endl;
+
+		//next generation
+		counter++;
+		
+		system("pause");
+		system("cls");
 	}
 	
 
